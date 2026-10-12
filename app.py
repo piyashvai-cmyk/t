@@ -1583,6 +1583,20 @@ async def functional_lone_wolf(addrs, starter_packet, account_region, client_ver
     try:
         while True:
             writer = None
+            # পজ চেক করার কোড
+if bot_state.accounts.get(uid_str, {}).get("is_paused", False):
+    for m in play_matches:
+        if not m.done():
+            m.cancel()
+    play_matches.clear()
+    try:
+        if writer:
+            writer.close()
+            await writer.wait_closed()
+    except Exception:
+        pass
+    await asyncio.sleep(5)
+    continue
             try:
                 if current_account_data:
                     fresh = None
