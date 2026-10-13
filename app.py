@@ -1,4 +1,4 @@
-# ==================== APP.PY - MASTER OFFICIAL (BD FINAL) ====================
+# ==================== APP.PY - MASTER OFFICIAL (BD FINAL v2) ====================
 import sys
 import asyncio
 import httpx
@@ -52,7 +52,7 @@ MATCH_IDLE_TIMEOUT = 20.0
 MAX_CONCURRENT_MATCHES = 1
 HUMAN_MODE = True
 
-FORCE_REGION = "BD"   # 🇧🇩 Bangladesh
+FORCE_REGION = "BD"
 
 MAX_CONSECUTIVE_PARSE_FAILURES = 5.0
 NON_MATCH_RECONNECT_DELAY = 1.0
@@ -71,47 +71,24 @@ async def human_jitter():
 
 
 # ==================== BD IP RANGES ====================
-# Real Bangladeshi ISP IP prefixes
 BD_IP_PREFIXES = [
-    "103.244",   # Link3 Technologies
-    "103.145",   # Grameenphone
-    "103.230",   # Banglalink
-    "103.87",    # Robi Axiata
-    "103.108",   # Aamra Networks
-    "103.92",    # Amber IT
-    "103.117",   # Carnival Internet
-    "118.179",   # BTCL
-    "119.30",    # BTCL
-    "203.76",    # Bracnet
-    "202.81",    # Aamra
-    "202.4",     # ISP
-    "103.4",     # BD Range
-    "103.6",     # BD Range
-    "103.66",    # BD Range
+    "103.244", "103.145", "103.230", "103.87", "103.108",
+    "103.92", "103.117", "118.179", "119.30", "203.76",
+    "202.81", "202.4", "103.4", "103.6", "103.66",
 ]
 
 BD_TELECOM_OPERATORS = [
-    "Grameenphone",
-    "Robi Axiata",
-    "Banglalink",
-    "Airtel",
-    "Teletalk",
+    "Grameenphone", "Robi Axiata", "Banglalink", "Airtel", "Teletalk",
 ]
 
 BD_CITIES = [
-    ("Dhaka", "DH"),
-    ("Chattogram", "CH"),
-    ("Sylhet", "SY"),
-    ("Rajshahi", "RA"),
-    ("Khulna", "KH"),
-    ("Barishal", "BA"),
-    ("Rangpur", "RP"),
-    ("Mymensingh", "MY"),
+    ("Dhaka", "DH"), ("Chattogram", "CH"), ("Sylhet", "SY"),
+    ("Rajshahi", "RA"), ("Khulna", "KH"), ("Barishal", "BA"),
+    ("Rangpur", "RP"), ("Mymensingh", "MY"),
 ]
 
 
 def generate_bd_ip() -> str:
-    """Generate random Bangladeshi IP"""
     prefix = random.choice(BD_IP_PREFIXES)
     return f"{prefix}.{random.randint(1, 254)}.{random.randint(1, 254)}"
 
@@ -129,7 +106,6 @@ def get_device_for_account(account_identifier: str) -> dict:
     acc_key = str(account_identifier)
     if acc_key in devices:
         dev = devices[acc_key]
-        # Refresh client_ip every time (should be BD)
         dev["client_ip"] = generate_bd_ip()
         return dev
 
@@ -445,8 +421,8 @@ def log_banner():
     print("")
     print(f"{Colors.CYAN}+{'=' * 58}+{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{' ' * 58}{Colors.CYAN}|{Colors.ENDC}")
-    print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.BOLD}{Colors.MAGENTA}{'MASTER OFFICIAL - BD SERVER'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
-    print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.DIM}{'Lone Wolf Mode | Bangladesh Region'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
+    print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.BOLD}{Colors.MAGENTA}{'MASTER OFFICIAL - BD SERVER v2'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
+    print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.DIM}{'Lone Wolf Mode | Bangladesh'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{' ' * 58}{Colors.CYAN}|{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.GREEN}{'Telegram: @master_ff_01'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.WHITE}{f'Dashboard: http://localhost:{WEB_PORT}'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
@@ -619,7 +595,6 @@ async def get_playstore_version():
 
 
 async def version_config():
-    """🇧🇩 Bangladesh server configuration"""
     app_version = await get_playstore_version()
     api_url = (
         "https://version.ggwhitehawk.com/live/ver.php"
@@ -739,7 +714,6 @@ def encrypt_api_bytes(plain_bytes):
 
 
 async def build_majorlogin_payload(open_id, access_token, platform, client_version, device_info):
-    """🇧🇩 BD region payload with BD telecom + city"""
     try:
         telecom = device_info.get("telecom_operator", "Grameenphone")
         city = device_info.get("city", "Dhaka")
@@ -768,7 +742,7 @@ async def build_majorlogin_payload(open_id, access_token, platform, client_versi
             23:  str(platform),
             24:  "Handheld",
             25:  str(device_info.get("model", "Xiaomi 2409BRN2CY")),
-            26:  "BD",   # 🇧🇩
+            26:  "BD",
             29:  str(access_token),
             30:  "1",
             41:  telecom,
@@ -915,7 +889,6 @@ async def send_getlogin(data, base_url, token, release_version):
 
 
 async def build_tcp_startup_packet(account_id, token, server_time, key, iv, region="BD", typ='OnLine'):
-    """🇧🇩 BD region prefixes: 7119 (OnLine), 9219 (ChaT)"""
     uid_hex = f"{int(account_id):016x}"
     timestamp_hex = f"{int(server_time):08x}"
     encode_token = token.encode()
@@ -941,7 +914,6 @@ async def build_tcp_startup_packet(account_id, token, server_time, key, iv, regi
 
 
 async def send_keep_alive(region="BD"):
-    """🇧🇩 BD = 0219"""
     try:
         reg = str(region).upper() if region else "BD"
         if reg in ("BD", "ID"):
@@ -1406,13 +1378,11 @@ async def play_game(server_ip_port, thunder, sharma, udp_key, match_code,
                     log_err(f"[MATCH #{match_index}] send error: {e}")
 
         while not local_closed:
-            # ====== পজ / ডিলিট চেক ======
             acc = bot_state.accounts.get(uid_str)
             if acc is None or acc.get("is_paused", False):
                 log_warn(f"[MATCH #{match_index}] Stopped (pause/delete).")
                 local_closed = True
                 break
-            # =============================
 
             if time.time() - match_start_time > MAX_MATCH_DURATION:
                 break
@@ -1560,7 +1530,7 @@ async def functional_lone_wolf(addrs, starter_packet, account_region, client_ver
     current_iv = iv
     current_account_data = account_data
 
-    forced_region = FORCE_REGION  # BD
+    forced_region = FORCE_REGION
 
     try:
         while True:
@@ -1591,7 +1561,6 @@ async def functional_lone_wolf(addrs, starter_packet, account_region, client_ver
                 log_info(f"Account {uid_str} paused. TCP offline.")
                 await asyncio.sleep(3)
                 continue
-            # =============================
 
             try:
                 if current_account_data:
@@ -1674,7 +1643,6 @@ async def functional_lone_wolf(addrs, starter_packet, account_region, client_ver
                 await send_start_match()
 
                 while True:
-                    # পজ / ডিলিট চেক
                     a = bot_state.accounts.get(uid_str)
                     if a is None:
                         log_warn(f"Account {uid_str} deleted. Closing TCP.")
@@ -2129,7 +2097,6 @@ async def process_account_uid_pass(uid: str, password: str) -> Optional[Dict]:
         exp = int(get_proto_field(dict_res, 7, 0))
         likes = int(get_proto_field(dict_res, 8, 0))
         nickname = res_proto.nickname or get_proto_field(dict_res, 4, f"Player_{acc_id}")
-        # BD region
         region = "BD"
         if majorlogin_response.region and majorlogin_response.region.upper() not in ("ID", "IND"):
             region = majorlogin_response.region
@@ -2379,14 +2346,15 @@ async def run_account_worker(account_data: Dict, label: str):
                     pass
 
 
+# ============================================================
+# account_loop_guest — FIXED: no premature delete detection
+# ============================================================
 async def account_loop_guest(uid: str, password: str):
     while True:
         try:
+            # Pause check — only if account already registered
             acc = bot_state.accounts.get(str(uid))
-            if acc is None:
-                log_warn(f"Account {uid} deleted. Stopping worker.")
-                break
-            if acc.get("is_paused", False):
+            if acc is not None and acc.get("is_paused", False):
                 try:
                     bot_state.update_status(str(uid), "PAUSED")
                 except Exception:
@@ -2424,24 +2392,19 @@ async def account_loop_guest(uid: str, password: str):
             await asyncio.sleep(10)
 
 
+# ============================================================
+# account_loop_token — FIXED: no premature delete detection
+# ============================================================
 async def account_loop_token(token: str):
     token_label = token[:10]
     while True:
         try:
+            # Pause check — only if account already registered
             found_uid = None
             for k, v in bot_state.accounts.items():
                 if v.get("auth_token", "")[:10] == token_label:
                     found_uid = k
                     break
-            if found_uid is None and len(bot_state.accounts) > 0:
-                any_exists = any(
-                    v.get("auth_token", "")[:10] == token_label
-                    for v in bot_state.accounts.values()
-                )
-                if not any_exists:
-                    log_warn(f"Token worker {token_label} - account deleted. Stopping.")
-                    break
-
             if found_uid:
                 acc = bot_state.accounts.get(found_uid)
                 if acc is not None and acc.get("is_paused", False):
@@ -2496,7 +2459,7 @@ async def main():
     log_info(f"Cache Invalidation   : {int(MAX_CONSECUTIVE_PARSE_FAILURES)}x failures")
     log_info(f"Cache TTL            : {TOKEN_CACHE_TTL}s ({TOKEN_CACHE_TTL//60} min)")
     log_info(f"HUMAN MODE           : {'ON' if HUMAN_MODE else 'OFF'}")
-    log_info(f"FORCED REGION        : {FORCE_REGION} BD [Bangladesh]")
+    log_info(f"FORCED REGION        : {FORCE_REGION} [Bangladesh]")
     log_info(f"BD IP Prefixes       : {len(BD_IP_PREFIXES)} ranges loaded")
 
     try:
