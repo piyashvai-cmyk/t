@@ -1,4 +1,4 @@
-# ==================== NO CHANGE 🚫@MASTER_FF_01 ====================
+# ==================== APP.PY - MASTER OFFICIAL (BD VERSION) ====================
 import sys
 import asyncio
 import httpx
@@ -12,9 +12,9 @@ import uuid
 import itertools
 import secrets
 import traceback
-import base64
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
+from urllib.parse import urlparse
 
 if sys.platform == "win32":
     try:
@@ -25,7 +25,6 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-# ==================== ORIGINAL IMPORTS ====================
 from google_play_scraper import app as play_scraper
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -34,18 +33,16 @@ from message_ids import MESSAGE_ID_TO_NAME
 import MasterTeam_pb2
 import MasterFF_pb2
 
-# ==================== WEB DASHBOARD ====================
 from dashboard_server import bot_state, start_web_dashboard
 
 # ==================== CONFIGURATION ====================
 WEB_HOST = "0.0.0.0"
-WEB_PORT = 20337
+WEB_PORT = int(os.environ.get("PORT", 20337))
 ACCOUNTS_FILE = "accounts.json"
 TOKEN_CACHE_FILE = "token_cache.json"
 DEVICES_FILE = "devices.json"
 TOKEN_CACHE_TTL = 1200
 
-# Match control (HUMAN-LIKE)
 START_MATCH_INTERVAL_MIN = 4.0
 START_MATCH_INTERVAL_MAX = 8.0
 START_MATCH_INTERVAL = 10.0
@@ -55,10 +52,8 @@ MATCH_IDLE_TIMEOUT = 20.0
 MAX_CONCURRENT_MATCHES = 1
 HUMAN_MODE = True
 
-# Force region
-FORCE_REGION = "IND"
+FORCE_REGION = "BD"  # 🇧🇩 বাংলাদেশ সার্ভার
 
-# Cache invalidation thresholds
 MAX_CONSECUTIVE_PARSE_FAILURES = 5.0
 NON_MATCH_RECONNECT_DELAY = 1.0
 
@@ -68,15 +63,14 @@ FALLBACK_PASSWORD = ""
 
 # ==================== HUMAN-LIKE HELPERS ====================
 async def human_delay(base=1.0, variance=0.5):
-    delay = base + random.uniform(-variance, variance)
-    return max(0.1, delay)
+    return max(0.1, base + random.uniform(-variance, variance))
 
 
 async def human_jitter():
     return random.uniform(0.05, 0.35)
 
 
-# ==================== ULTRA SAFE PERSISTENT DEVICE RANDOMIZER ====================
+# ==================== PERSISTENT DEVICE RANDOMIZER ====================
 def get_device_for_account(account_identifier: str) -> dict:
     devices = {}
     if os.path.exists(DEVICES_FILE):
@@ -87,7 +81,6 @@ def get_device_for_account(account_identifier: str) -> dict:
             pass
 
     acc_key = str(account_identifier)
-
     if acc_key in devices:
         return devices[acc_key]
 
@@ -100,8 +93,6 @@ def get_device_for_account(account_identifier: str) -> dict:
         ("Vivo", "V2203", "Mali-G710", "Android OS 12 / API-31"),
         ("Poco", "M2102J20SG", "Adreno (TM) 660", "Android OS 13 / API-33"),
         ("Samsung", "SM-G991B", "Adreno (TM) 660", "Android OS 13 / API-33"),
-        ("Xiaomi", "2203121C", "Adreno (TM) 730", "Android OS 13 / API-33"),
-        ("Realme", "RMX3370", "Adreno (TM) 650", "Android OS 12 / API-31"),
     ]
     brand, model, gpu, os_ver = random.choice(device_list)
 
@@ -125,7 +116,6 @@ def get_device_for_account(account_identifier: str) -> dict:
     }
 
     devices[acc_key] = new_device
-
     try:
         with open(DEVICES_FILE, "w", encoding="utf-8") as f:
             json.dump(devices, f, indent=4)
@@ -135,7 +125,7 @@ def get_device_for_account(account_identifier: str) -> dict:
     return new_device
 
 
-# ==================== CLOUDFLARE DNS RESOLVER ====================
+# ==================== DNS RESOLVER ====================
 CLOUDFLARE_PRIMARY_DNS = "1.1.1.1"
 CLOUDFLARE_SECONDARY_DNS = "1.0.0.1"
 _DNS_CACHE: Dict[str, Tuple[str, float]] = {}
@@ -145,7 +135,6 @@ _DNS_CACHE_TTL = 300.0
 async def resolve_host_cloudflare(hostname: str) -> str:
     if not hostname:
         return hostname
-
     parts = hostname.split('.')
     if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
         return hostname
@@ -163,12 +152,10 @@ async def resolve_host_cloudflare(hostname: str) -> str:
             header = struct.pack(">HHHHHH", tx_id, 0x0100, 1, 0, 0, 0)
             qname = b"".join(bytes([len(part)]) + part.encode('ascii') for part in hostname.split('.')) + b"\x00"
             query_pkt = header + qname + struct.pack(">HH", 1, 1)
-
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.settimeout(1.2)
             s.sendto(query_pkt, (server_ip, 53))
             resp, _ = s.recvfrom(1024)
-
             if len(resp) >= 12:
                 ancount = struct.unpack(">H", resp[6:8])[0]
                 if ancount > 0:
@@ -210,7 +197,6 @@ async def resolve_host_cloudflare(hostname: str) -> str:
                 ip = ip_info[0][4][0]
         except Exception:
             ip = hostname
-
     if ip:
         _DNS_CACHE[hostname] = (ip, now + _DNS_CACHE_TTL)
     return ip or hostname
@@ -286,7 +272,7 @@ _FIELD_SIZES = {0: 1, 1: 2, 2: 2, 3: 1, 4: 2}
 _FIELD_NAMES = {0: "sendOption", 1: "cmd", 2: "orderId", 3: "flags", 4: "length"}
 
 
-# ==================== 🎨 CLEAN LOG SYSTEM ====================
+# ==================== LOG SYSTEM ====================
 class Colors:
     GREEN = '\033[92m'
     FAIL = '\033[91m'
@@ -297,7 +283,6 @@ class Colors:
     BOLD = '\033[1m'
     DIM = '\033[2m'
     BLUE = '\033[94m'
-    YELLOW = '\033[93m'
     ENDC = '\033[0m'
 
 
@@ -306,17 +291,13 @@ def cprint(text, color=Colors.WHITE):
         print(f"{color}{text}{Colors.ENDC}")
     except Exception:
         try:
-            safe = text.encode('ascii', errors='replace').decode('ascii')
-            print(f"{color}{safe}{Colors.ENDC}")
+            print(f"{color}{text.encode('ascii', errors='replace').decode('ascii')}{Colors.ENDC}")
         except Exception:
             print(text)
 
 
-# Tag-width: 8 chars for alignment
 def log_info(text):
-    """General info"""
-    msg = f"{Colors.CYAN}[ INFO  ]{Colors.ENDC} {text}"
-    print(msg)
+    print(f"{Colors.CYAN}[ INFO  ]{Colors.ENDC} {text}")
     try:
         bot_state.log(text, "info")
     except Exception:
@@ -324,9 +305,7 @@ def log_info(text):
 
 
 def log_ok(text):
-    """Success"""
-    msg = f"{Colors.GREEN}[   OK  ]{Colors.ENDC} {text}"
-    print(msg)
+    print(f"{Colors.GREEN}[   OK  ]{Colors.ENDC} {text}")
     try:
         bot_state.log(text, "success")
     except Exception:
@@ -334,9 +313,7 @@ def log_ok(text):
 
 
 def log_warn(text):
-    """Warning"""
-    msg = f"{Colors.WARNING}[  WARN ]{Colors.ENDC} {text}"
-    print(msg)
+    print(f"{Colors.WARNING}[  WARN ]{Colors.ENDC} {text}")
     try:
         bot_state.log(text, "warning")
     except Exception:
@@ -344,9 +321,7 @@ def log_warn(text):
 
 
 def log_err(text):
-    """Error"""
-    msg = f"{Colors.FAIL}[  FAIL ]{Colors.ENDC} {text}"
-    print(msg)
+    print(f"{Colors.FAIL}[  FAIL ]{Colors.ENDC} {text}")
     try:
         bot_state.log(text, "error")
     except Exception:
@@ -354,9 +329,7 @@ def log_err(text):
 
 
 def log_login(text):
-    """Login events"""
-    msg = f"{Colors.MAGENTA}[ LOGIN ]{Colors.ENDC} {text}"
-    print(msg)
+    print(f"{Colors.MAGENTA}[ LOGIN ]{Colors.ENDC} {text}")
     try:
         bot_state.log(text, "info")
     except Exception:
@@ -364,9 +337,7 @@ def log_login(text):
 
 
 def log_match(text):
-    """Match events"""
-    msg = f"{Colors.GREEN}[ MATCH ]{Colors.ENDC} {text}"
-    print(msg)
+    print(f"{Colors.GREEN}[ MATCH ]{Colors.ENDC} {text}")
     try:
         bot_state.log(text, "success")
     except Exception:
@@ -374,9 +345,7 @@ def log_match(text):
 
 
 def log_exp(text):
-    """EXP gains"""
-    msg = f"{Colors.GREEN}[  EXP  ]{Colors.ENDC} {text}"
-    print(msg)
+    print(f"{Colors.GREEN}[  EXP  ]{Colors.ENDC} {text}")
     try:
         bot_state.log(text, "success")
     except Exception:
@@ -384,9 +353,7 @@ def log_exp(text):
 
 
 def log_net(text):
-    """Network events"""
-    msg = f"{Colors.BLUE}[  NET  ]{Colors.ENDC} {text}"
-    print(msg)
+    print(f"{Colors.BLUE}[  NET  ]{Colors.ENDC} {text}")
     try:
         bot_state.log(text, "info")
     except Exception:
@@ -394,19 +361,7 @@ def log_net(text):
 
 
 def log_search(text):
-    """Match search"""
-    msg = f"{Colors.CYAN}[SEARCH ]{Colors.ENDC} {text}"
-    print(msg)
-    try:
-        bot_state.log(text, "info")
-    except Exception:
-        pass
-
-
-def log_afk(text):
-    """Anti-AFK"""
-    msg = f"{Colors.CYAN}[  AFK  ]{Colors.ENDC} {text}"
-    print(msg)
+    print(f"{Colors.CYAN}[SEARCH ]{Colors.ENDC} {text}")
     try:
         bot_state.log(text, "info")
     except Exception:
@@ -414,9 +369,7 @@ def log_afk(text):
 
 
 def log_cache(text):
-    """Cache events"""
-    msg = f"{Colors.MAGENTA}[ CACHE ]{Colors.ENDC} {text}"
-    print(msg)
+    print(f"{Colors.MAGENTA}[ CACHE ]{Colors.ENDC} {text}")
     try:
         bot_state.log(text, "info")
     except Exception:
@@ -424,7 +377,6 @@ def log_cache(text):
 
 
 def log_separator(title=""):
-    """Big separator line"""
     line = "=" * 60
     print("")
     print(f"{Colors.CYAN}{line}{Colors.ENDC}")
@@ -435,12 +387,11 @@ def log_separator(title=""):
 
 
 def log_banner():
-    """Startup banner"""
     print("")
     print(f"{Colors.CYAN}+{'=' * 58}+{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{' ' * 58}{Colors.CYAN}|{Colors.ENDC}")
-    print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.BOLD}{Colors.MAGENTA}{'MASTER OFFICIAL - AUTO LEVEL UP BOT'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
-    print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.DIM}{'Lone Wolf Mode | IND Region'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
+    print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.BOLD}{Colors.MAGENTA}{'MASTER OFFICIAL - BD SERVER'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
+    print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.DIM}{'Lone Wolf Mode | Bangladesh'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{' ' * 58}{Colors.CYAN}|{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.GREEN}{'Telegram: @master_ff_01'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.WHITE}{f'Dashboard: http://localhost:{WEB_PORT}'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
@@ -449,17 +400,6 @@ def log_banner():
     print("")
 
 
-def log_match_banner(match_idx, uid, server):
-    """Big banner when match found"""
-    print("")
-    print(f"{Colors.GREEN}{'+' + '-' * 58 + '+'}{Colors.ENDC}")
-    print(f"{Colors.GREEN}|{Colors.ENDC}  {Colors.BOLD}MATCH #{match_idx} FOUND{Colors.ENDC}".ljust(69) + f"{Colors.GREEN}|{Colors.ENDC}")
-    print(f"{Colors.GREEN}|{Colors.ENDC}  UID: {uid} | Server: {server}".ljust(69) + f"{Colors.GREEN}|{Colors.ENDC}")
-    print(f"{Colors.GREEN}{'+' + '-' * 58 + '+'}{Colors.ENDC}")
-    print("")
-
-
-# Backwards-compat aliases (in case any code still calls these)
 print_colored = cprint
 print_success = log_ok
 print_error = log_err
@@ -479,7 +419,7 @@ def get_proto_field(d, key, default=None):
     return default
 
 
-# ==================== PER-ACCOUNT MATCH COUNTER ====================
+# ==================== MATCH COUNTER ====================
 _match_counters: Dict[str, int] = {}
 _match_counter_lock = asyncio.Lock()
 
@@ -537,7 +477,6 @@ def _load_token_cache() -> Dict[str, Any]:
     now = time.time()
     if _token_cache_memo and (now - _token_cache_memo_time) < _TOKEN_CACHE_MEMO_TTL:
         return _token_cache_memo
-
     if not os.path.exists(TOKEN_CACHE_FILE):
         return {}
     try:
@@ -619,18 +558,19 @@ async def get_playstore_version():
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(
         None,
-        lambda: play_scraper('com.dts.freefireth', lang='hi', country='id')
+        lambda: play_scraper('com.dts.freefireth', lang='hi', country='bd')
     )
     return result.get("version")
 
 
 async def version_config():
+    """🇧🇩 Bangladesh server configuration"""
     app_version = await get_playstore_version()
     api_url = (
         "https://version.ggwhitehawk.com/live/ver.php"
         f"?version={app_version}"
         "&lang=hi&device=android&channel=android"
-        "&appstore=googleplay&region=ID"
+        "&appstore=googleplay&region=BD"
         "&whitelist_version=1.3.0&whitelist_sp_version=1.0.0"
     )
     try:
@@ -640,10 +580,13 @@ async def version_config():
         server_url = data.get("server_url")
         remote_version = data.get("remote_version")
         latest_release_version = data.get("latest_release_version")
+        country_code = data.get("country_code", "")
+        log_info(f"Server config: country={country_code} | version={latest_release_version} | server={server_url}")
         if not server_url or not remote_version or not latest_release_version:
             return None
         return latest_release_version, remote_version, server_url
-    except Exception:
+    except Exception as e:
+        log_err(f"version_config error: {e}")
         return None
 
 
@@ -705,7 +648,6 @@ async def decode_protobuf(data):
     return json.dumps(parsed_results_dict)
 
 
-# ==================== MANUAL PROTOBUF WIRE FORMAT ====================
 def encode_varint(n):
     if n < 0:
         return b''
@@ -735,32 +677,23 @@ def build_proto(fields):
     return b''.join(parts)
 
 
-def encrypt_api(plain_hex):
-    return AES.new(AES_KEY, AES.MODE_CBC, AES_IV).encrypt(
-        pad(bytes.fromhex(plain_hex), AES.block_size)
-    ).hex()
-
-
 def encrypt_api_bytes(plain_bytes):
     return AES.new(AES_KEY, AES.MODE_CBC, AES_IV).encrypt(
         pad(plain_bytes, AES.block_size)
     )
 
 
-# ==================== build_majorlogin_payload (IND REGION) ====================
 async def build_majorlogin_payload(open_id, access_token, platform, client_version, device_info):
+    """🇧🇩 BD region payload"""
     try:
         payload_dict = {
             3:   str(datetime.now())[:-7],
             4:   "free fire",
             5:   "1",
-            7:   str(client_version) if client_version else "1.132.8",
-            8:   str(device_info.get(
-                     "system_software",
-                     "Android OS 15 / API-35 (AP3A.240905.015.A2/OS2.0.202.0.VGTIDXM)"
-                 )),
+            7:   str(client_version) if client_version else "1.132.10",
+            8:   str(device_info.get("system_software", "Android OS 15 / API-35")),
             9:   "Handheld",
-            10:  "Airtel",
+            10:  "Grameenphone",
             11:  "CarrierDataNetwork",
             12:  str(device_info.get("screen_width", 1639)),
             13:  str(device_info.get("screen_height", 720)),
@@ -770,16 +703,16 @@ async def build_majorlogin_payload(open_id, access_token, platform, client_versi
             17:  str(device_info.get("gpu_renderer", "Mali-G52 MC2")),
             18:  "OpenGL ES 3.2 v1.r49p1-03bet0.19498e0ae1d5dac223383c39a2e58f04",
             19:  str(device_info.get("unique_device_id", f"Google|{uuid.uuid4()}")),
-            20:  str(device_info.get("client_ip", "182.5.135.225")),
+            20:  str(device_info.get("client_ip", "103.244.141.111")),
             21:  "en",
             22:  str(open_id),
             23:  str(platform),
             24:  "Handheld",
             25:  str(device_info.get("model", "Xiaomi 2409BRN2CY")),
-            26:  "IND",
+            26:  "BD",  # 🇧🇩 Bangladesh region
             29:  str(access_token),
             30:  "1",
-            41:  "Airtel",
+            41:  "Grameenphone",
             42:  "4G",
             57:  "7428b253defc164018c604a1ebbfebdf",
             60:  "109278",
@@ -801,8 +734,8 @@ async def build_majorlogin_payload(open_id, access_token, platform, client_versi
             86:  "OpenGLES2",
             87:  "8191",
             88:  str(platform),
-            90:  "Mumbai",
-            91:  "MH",
+            90:  "Dhaka",
+            91:  "DH",
             92:  "14466",
             93:  "android",
             94:  "KqsHTyb7yHjsAiyNWUUZa0DSOD6U0AhDQ76smAo1WeHHHpSmJ8KMRyRrxb2ttgJqO9YOqO/K6AORAvDMAX/qBS8+JahIkrM7kHfzlfULbgRAoZ9r",
@@ -816,46 +749,36 @@ async def build_majorlogin_payload(open_id, access_token, platform, client_versi
             103: "1",
             104: "52837",
             105: "1",
-            106: "https://dl.gmc.freefiremobile.com/live/ABHotUpdates/|https://core-gmc.freefiremobile.com/live/ABHotUpdates/|211c933168f55902c7dfbfd8c4e2957d",
+            106: "https://dl-bs.ggpolarbear.com/live/ABHotUpdates/|https://core-bs.ggpolarbear.com/live/ABHotUpdates/|211c933168f55902c7dfbfd8c4e2957d",
             107: "1.3fb8adbf45f44ce9",
         }
-
         raw_proto = build_proto(payload_dict)
-        encrypted = encrypt_api_bytes(raw_proto)
-        return encrypted
-
+        return encrypt_api_bytes(raw_proto)
     except Exception as e:
         log_err(f"MajorLogin payload build failed: {e}")
         traceback.print_exc()
         return None
 
 
-# ==================== send_majorlogin ====================
 async def send_majorlogin(data, release_version, server_url):
     try:
-        if not data:
-            log_err("[MajorLogin] Empty payload - aborting")
+        if not data or not server_url:
             return None
-        if not server_url:
-            log_err("[MajorLogin] Missing server_url - aborting")
-            return None
-
         base = server_url.rstrip('/')
         url = f"{base}/MajorLogin"
-
         req_headers = headers.copy()
         req_headers["ReleaseVersion"] = release_version
+        # Dynamic Host header
+        parsed = urlparse(server_url)
+        if parsed.netloc:
+            req_headers["Host"] = parsed.netloc
         response = await client.post(url, headers=req_headers, data=data)
-
         if response.status_code != 200:
             log_err(f"[MajorLogin] HTTP {response.status_code}")
             return None
-
         response_content = response.content
         if len(response_content) < 40:
-            log_err(f"[MajorLogin] Response too small ({len(response_content)} bytes)")
             return None
-
         res_proto = MasterTeam_pb2.MajorLoginRes()
         try:
             res_proto.ParseFromString(response_content)
@@ -863,7 +786,6 @@ async def send_majorlogin(data, release_version, server_url):
                 return res_proto
         except Exception:
             pass
-
         if len(response_content) > 64:
             try:
                 res_proto = MasterTeam_pb2.MajorLoginRes()
@@ -872,7 +794,6 @@ async def send_majorlogin(data, release_version, server_url):
                     return res_proto
             except Exception:
                 pass
-
         for offset in range(min(128, len(response_content))):
             try:
                 candidate = MasterTeam_pb2.MajorLoginRes()
@@ -881,7 +802,6 @@ async def send_majorlogin(data, release_version, server_url):
                     return candidate
             except Exception:
                 pass
-
         res_proto = MasterTeam_pb2.MajorLoginRes()
         res_proto.ParseFromString(response_content)
         return res_proto
@@ -890,28 +810,23 @@ async def send_majorlogin(data, release_version, server_url):
         return None
 
 
-# ==================== send_getlogin ====================
 async def send_getlogin(data, base_url, token, release_version):
     try:
         if not data:
-            log_err("[GetLoginData] Empty payload - aborting")
             return None
-
         base = base_url.rstrip('/')
         url = f"{base}/GetLoginData"
-
         req_headers = headers.copy()
         req_headers["ReleaseVersion"] = release_version
         req_headers['Authorization'] = f"Bearer {token}"
-        req_headers['Host'] = "clientbp.ppmainecoonghj.com"
+        # BD এর জন্য ডাইনামিক Host
+        parsed = urlparse(base_url)
+        req_headers['Host'] = parsed.netloc or "loginbp.ppmainecoonghj.com"
         response = await client.post(url, headers=req_headers, data=data)
-
         if response.status_code != 200:
             log_err(f"[GetLoginData] HTTP {response.status_code}")
             return None
-
         response_content = response.content
-
         res_proto = MasterTeam_pb2.GetLoginDataRes()
         parsed_successfully = False
         try:
@@ -920,7 +835,6 @@ async def send_getlogin(data, base_url, token, release_version):
                 parsed_successfully = True
         except Exception:
             pass
-
         if not parsed_successfully:
             for offset in range(min(128, len(response_content))):
                 try:
@@ -931,47 +845,57 @@ async def send_getlogin(data, base_url, token, release_version):
                         break
                 except Exception:
                     pass
-
         dict_res = {}
         try:
             parsed = Parser().parse(response_content.hex())
             dict_res = await parse_results(parsed)
         except Exception:
             pass
-
         return res_proto, dict_res
     except Exception as e:
         log_err(f"[GetLoginData] Exception: {e}")
         return None
 
 
-async def build_tcp_startup_packet(account_id, token, server_time, key, iv, region="IND", typ='OnLine'):
+async def build_tcp_startup_packet(account_id, token, server_time, key, iv, region="BD", typ='OnLine'):
+    """🇧🇩 BD region prefixes: 7119 (OnLine), 9219 (ChaT)"""
     uid_hex = f"{int(account_id):016x}"
     timestamp_hex = f"{int(server_time):08x}"
     encode_token = token.encode()
     encrypted_packet = (await aes_encrypt(encode_token, key, iv)).hex()
     encrypted_packet_length = f"{len(encrypted_packet) // 2:08x}"
-    reg = str(region).upper() if region else "IND"
+    reg = str(region).upper() if region else "BD"
     if typ == 'OnLine':
-        prefix = '7119' if reg == 'ID' else ('7114' if reg == 'IND' else '7115')
+        if reg == 'BD':
+            prefix = '7119'
+        elif reg == 'IND':
+            prefix = '7114'
+        else:
+            prefix = '7115'
         return f"{prefix}{uid_hex}{timestamp_hex}00000000{encrypted_packet_length}{encrypted_packet}"
     else:
-        prefix = '9219' if reg == 'ID' else ('9214' if reg == 'IND' else '9215')
+        if reg == 'BD':
+            prefix = '9219'
+        elif reg == 'IND':
+            prefix = '9214'
+        else:
+            prefix = '9215'
         return f"{prefix}{uid_hex}{timestamp_hex}{encrypted_packet_length}{encrypted_packet}"
 
 
-async def send_keep_alive(region="IND"):
+async def send_keep_alive(region="BD"):
+    """🇧🇩 BD = 0219"""
     try:
-        reg = str(region).upper() if region else "IND"
-        if reg in ("IND", "IN"):
-            ka_hex = "0214"
-        elif reg == "ID":
+        reg = str(region).upper() if region else "BD"
+        if reg in ("BD", "ID"):
             ka_hex = "0219"
+        elif reg in ("IND", "IN"):
+            ka_hex = "0214"
         else:
             ka_hex = "0215"
         return bytes.fromhex(ka_hex)
     except Exception:
-        return bytes.fromhex("0214")
+        return bytes.fromhex("0219")
 
 
 async def start_game_lone_wolf(region, client_version, writer, key, iv):
@@ -989,7 +913,7 @@ async def start_game_lone_wolf(region, client_version, writer, key, iv):
     packet_length = len(encrypted_packet) // 2
     hex_length = hex(packet_length)[2:]
     hex_length = hex_length if len(hex_length) > 1 else "0" + hex_length
-    reg = str(region).upper() if region else "IND"
+    reg = str(region).upper() if region else "BD"
     reg_prefix = "031400"
     final_packet = reg_prefix + "0" * (6 - len(hex_length)) + hex_length + encrypted_packet
     writer.write(bytes.fromhex(final_packet))
@@ -1106,42 +1030,34 @@ async def sv_frame(msg_key, layout, send_option, cmd, order_id, flags, content, 
 
 
 async def build_match_startup_packets(token, udp_key, match_code, account_id, block_val,
-                                      server_ip="", region="IND", client_version="1.132.6",
+                                      server_ip="", region="BD", client_version="1.132.10",
                                       client_version_code="2019121229", access_token=""):
     token = token.strip()
     udp_key = bytes.fromhex(udp_key)
     match_code = [int(ch) for ch in str(match_code).strip()]
-
     thunder_jwt = token[:660] if len(token) > 660 else token
     sharma_jwt = token[660:] if len(token) > 660 else ""
     encoded_thunder_jwt = thunder_jwt.encode() if isinstance(thunder_jwt, str) else thunder_jwt
     encoded_sharma_jwt = sharma_jwt.encode() if isinstance(sharma_jwt, str) else sharma_jwt
-
     garena420 = await has_ssan_zig(len(encoded_thunder_jwt)) + encoded_thunder_jwt
-
-    reg = str(region).upper() if region else "IND"
+    reg = str(region).upper() if region else "BD"
     csoversea_block = bytes.fromhex(
         "ca0163736f7665727365612e7374726f6e67686f6c642e66726565666972656d6f62696c652e636f6d"
         "3b302e302e302e303b33342e3132362e37362e34353b33342e38372e3137372e31343b33342e38372e"
         "3137302e3233303b33352e3138352e3138332e35370000000000000100000000000000000000000001"
         "00000800000100000000000100a8a2d7bebd8d8bdf110200"
     )
-
     mid = bytes.fromhex('0000000001000102030101') + await has_ssan_zig(len(reg)) + reg.encode()
     mid += bytes.fromhex('0001030003000004')
     mid += await has_ssan_zig(len(client_version)) + client_version.encode()
     mid += await has_ssan_zig(len(client_version_code)) + client_version_code.encode()
     mid += csoversea_block
-
     clean_ip = server_ip.split(':')[0] if server_ip else "0.0.0.0"
     mid += await has_ssan_zig(len(clean_ip)) + clean_ip.encode()
-
     clean_acc_tok = access_token.strip() if access_token else ""
     if clean_acc_tok:
         mid += await has_ssan_zig(len(clean_acc_tok)) + clean_acc_tok.encode()
-
     mid += await has_ssan_zig(len(encoded_sharma_jwt)) + encoded_sharma_jwt
-
     tg_garena420 = (
         await uleb_encode(int(account_id)) +
         await uleb_encode(int(block_val)) +
@@ -1151,7 +1067,6 @@ async def build_match_startup_packets(token, udp_key, match_code, account_id, bl
         await uleb_encode(11) +
         mid
     )
-
     process = await sv_frame(0x5E, match_code, 2, 447, 0, 1, garena420, udp_key)
     loading = await sv_frame(0x5A, match_code, 2, 448, 1, 1, tg_garena420, udp_key)
     return process.hex(), loading.hex()
@@ -1269,12 +1184,16 @@ async def reply_for(frame, key, mask, ack_key=0x68, ping_key=0x6D, hello_key=0x5
     return typ, None
 
 
-async def keepalive_ping(sock, ip, port, key_bytes, mask, stop_event):
+async def keepalive_ping(sock, ip, port, key_bytes, mask, stop_event, uid_str=""):
     nr = (await layouts_from_mask(mask))[1]
     ping_keys = [0x66, 0x6D, 0x69, 0x6C, 0x6B, 0x6E, 0x6F, 0x70]
     loop = asyncio.get_event_loop()
     i = 0
     while not stop_event.is_set():
+        if uid_str:
+            acc = bot_state.accounts.get(uid_str)
+            if acc is None or acc.get("is_paused", False):
+                break
         pk = ping_keys[i % len(ping_keys)]
         counter = int(time.time() * 1000) & 0xFFFFFFFF
         pkt = await build_packet(pk, nr, 0, 3, None, 0, struct.pack("<I", counter) + b"\x00\x00\x00", key_bytes, encrypted=False)
@@ -1362,7 +1281,7 @@ async def decode_packet(packet, key, mask=None):
 
 
 # ============================================================
-# play_game — UDP MATCH
+# play_game — UDP MATCH (with pause/delete check)
 # ============================================================
 async def play_game(server_ip_port, thunder, sharma, udp_key, match_code,
                     account_id, player_region, client_version, key, iv,
@@ -1396,7 +1315,7 @@ async def play_game(server_ip_port, thunder, sharma, udp_key, match_code,
         send_lock = asyncio.Lock()
 
         ping_task = asyncio.create_task(
-            keepalive_ping(sock, resolved_ip, port, udp_key_bytes, match_code, ping_stop)
+            keepalive_ping(sock, resolved_ip, port, udp_key_bytes, match_code, ping_stop, uid_str)
         )
         last_activity = time.time()
         MAX_IDLE_BEFORE_HELLO_RESEND = 7.0
@@ -1430,6 +1349,14 @@ async def play_game(server_ip_port, thunder, sharma, udp_key, match_code,
                     log_err(f"[MATCH #{match_index}] send error: {e}")
 
         while not local_closed:
+            # ====== পজ / ডিলিট চেক ======
+            acc = bot_state.accounts.get(uid_str)
+            if acc is None or acc.get("is_paused", False):
+                log_warn(f"[MATCH #{match_index}] Stopped (pause/delete).")
+                local_closed = True
+                break
+            # =============================
+
             if time.time() - match_start_time > MAX_MATCH_DURATION:
                 break
             try:
@@ -1546,17 +1473,17 @@ async def play_game(server_ip_port, thunder, sharma, udp_key, match_code,
                 pass
         remaining = await _dec_match(uid_str)
         total = await _get_total_match_count()
-        log_info(
-            f"[MATCH #{match_index}] Closed | UID active: {remaining} | Total active: {total}"
-        )
-        try:
-            bot_state.update_status(uid_str, "IN_MATCH" if remaining > 0 else "ONLINE", remaining)
-        except Exception:
-            pass
+        log_info(f"[MATCH #{match_index}] Closed | UID active: {remaining} | Total active: {total}")
+        acc = bot_state.accounts.get(uid_str)
+        if acc is not None:
+            try:
+                bot_state.update_status(uid_str, "IN_MATCH" if remaining > 0 else "ONLINE", remaining)
+            except Exception:
+                pass
 
 
 # ============================================================
-# functional_lone_wolf — TCP + Match handler
+# functional_lone_wolf — TCP + Match handler (pause/delete aware)
 # ============================================================
 async def functional_lone_wolf(addrs, starter_packet, account_region, client_version,
                                 key, iv, account_id="", account_data=None,
@@ -1576,27 +1503,39 @@ async def functional_lone_wolf(addrs, starter_packet, account_region, client_ver
     current_iv = iv
     current_account_data = account_data
 
-    forced_region = FORCE_REGION
-    if account_region and account_region.upper() not in ("IND", "IN", "ID"):
-        forced_region = account_region.upper()
+    forced_region = FORCE_REGION  # BD
 
     try:
         while True:
             writer = None
-            # পজ চেক করার কোড
-if bot_state.accounts.get(uid_str, {}).get("is_paused", False):
-    for m in play_matches:
-        if not m.done():
-            m.cancel()
-    play_matches.clear()
-    try:
-        if writer:
-            writer.close()
-            await writer.wait_closed()
-    except Exception:
-        pass
-    await asyncio.sleep(5)
-    continue
+
+            # ====== পজ / ডিলিট চেক ======
+            acc = bot_state.accounts.get(uid_str)
+            if acc is None:
+                log_warn(f"Account {uid_str} deleted. Stopping TCP worker.")
+                for m in play_matches:
+                    if not m.done():
+                        m.cancel()
+                if play_matches:
+                    await asyncio.gather(*play_matches, return_exceptions=True)
+                play_matches.clear()
+                return
+            if acc.get("is_paused", False):
+                for m in play_matches:
+                    if not m.done():
+                        m.cancel()
+                if play_matches:
+                    await asyncio.gather(*play_matches, return_exceptions=True)
+                play_matches.clear()
+                try:
+                    bot_state.update_status(uid_str, "PAUSED", 0)
+                except Exception:
+                    pass
+                log_info(f"Account {uid_str} paused. TCP offline.")
+                await asyncio.sleep(3)
+                continue
+            # =============================
+
             try:
                 if current_account_data:
                     fresh = None
@@ -1678,6 +1617,37 @@ if bot_state.accounts.get(uid_str, {}).get("is_paused", False):
                 await send_start_match()
 
                 while True:
+                    # পজ / ডিলিট চেক
+                    a = bot_state.accounts.get(uid_str)
+                    if a is None:
+                        log_warn(f"Account {uid_str} deleted. Closing TCP.")
+                        for m in play_matches:
+                            if not m.done():
+                                m.cancel()
+                        if play_matches:
+                            await asyncio.gather(*play_matches, return_exceptions=True)
+                        play_matches.clear()
+                        try:
+                            writer.close()
+                            await writer.wait_closed()
+                        except Exception:
+                            pass
+                        return
+                    if a.get("is_paused", False):
+                        log_info(f"Account {uid_str} paused. Closing TCP.")
+                        for m in play_matches:
+                            if not m.done():
+                                m.cancel()
+                        if play_matches:
+                            await asyncio.gather(*play_matches, return_exceptions=True)
+                        play_matches.clear()
+                        try:
+                            writer.close()
+                            await writer.wait_closed()
+                        except Exception:
+                            pass
+                        break
+
                     play_matches[:] = [m for m in play_matches if not m.done()]
 
                     active_count = await _get_match_count(uid_str)
@@ -1894,10 +1864,16 @@ if bot_state.accounts.get(uid_str, {}).get("is_paused", False):
         raise
 
 
-async def informational(addrs, starter_packet, key, iv, region="IND", max_reconnects=3):
+async def informational(addrs, starter_packet, key, iv, region="BD", uid="", max_reconnects=3):
     reconnects = 0
     ip, port = addrs.split(":")
     while True:
+        if uid:
+            acc = bot_state.accounts.get(str(uid))
+            if acc is None or acc.get("is_paused", False):
+                await asyncio.sleep(3)
+                continue
+
         writer = None
         ping_task = None
         try:
@@ -1924,6 +1900,10 @@ async def informational(addrs, starter_packet, key, iv, region="IND", max_reconn
                 ka_bytes = await send_keep_alive(region)
                 while True:
                     await asyncio.sleep(5)
+                    if uid:
+                        a = bot_state.accounts.get(str(uid))
+                        if a is None or a.get("is_paused", False):
+                            break
                     try:
                         if writer and not writer.is_closing():
                             writer.write(ka_bytes)
@@ -1934,9 +1914,15 @@ async def informational(addrs, starter_packet, key, iv, region="IND", max_reconn
             ping_task = asyncio.create_task(info_keepalive())
 
             while True:
-                data = await reader.read(8192)
+                data = await asyncio.wait_for(reader.read(8192), timeout=2.0)
                 if not data:
                     raise ConnectionError("Connection closed")
+                if uid:
+                    a = bot_state.accounts.get(str(uid))
+                    if a is None or a.get("is_paused", False):
+                        raise ConnectionError("Paused or deleted")
+        except asyncio.TimeoutError:
+            continue
         except asyncio.CancelledError:
             if ping_task:
                 ping_task.cancel()
@@ -2011,11 +1997,7 @@ async def refresh_account_profile(account_data_or_uid: Any):
                 bot_state.update_exp(acc_id, exp, level)
                 if old_exp and exp > old_exp:
                     diff = exp - old_exp
-                    acc_state = bot_state.accounts.get(acc_id, {})
-                    rem_e = acc_state.get('remaining_exp', 0)
-                    nxt_l = acc_state.get('next_level', (level or 1) + 1)
-                    pct_val = acc_state.get('progress_pct', 0)
-                    log_exp(f"+{diff:,} EXP | UID: {acc_id} | Lvl {acc_state.get('level', level)} ({pct_val}% - {rem_e:,} to Lvl {nxt_l})")
+                    log_exp(f"+{diff:,} EXP | UID: {acc_id} | Lvl {level}")
             if likes > 0 and acc_id in bot_state.accounts:
                 bot_state.accounts[acc_id]["likes"] = likes
             if nickname and acc_id in bot_state.accounts:
@@ -2035,7 +2017,7 @@ async def process_account_uid_pass(uid: str, password: str) -> Optional[Dict]:
         bot_state.register_account(
             uid=acc_id,
             nickname=nick,
-            region=cached.get('region', 'IND'),
+            region=cached.get('region', 'BD'),
             level=lvl,
             exp=exp_val,
             likes=cached.get('likes', 0)
@@ -2089,13 +2071,14 @@ async def process_account_uid_pass(uid: str, password: str) -> Optional[Dict]:
         exp = int(get_proto_field(dict_res, 7, 0))
         likes = int(get_proto_field(dict_res, 8, 0))
         nickname = res_proto.nickname or get_proto_field(dict_res, 4, f"Player_{acc_id}")
-        region = "IND"
-        if majorlogin_response.region and majorlogin_response.region.upper() not in ("ID",):
+        # BD region
+        region = "BD"
+        if majorlogin_response.region and majorlogin_response.region.upper() not in ("ID", "IND"):
             region = majorlogin_response.region
 
         bot_state.register_account(uid=acc_id, nickname=nickname, region=region, level=level, exp=exp, likes=likes)
 
-        log_ok(f"Login success | UID: {acc_id} | {nickname} | Lvl {level} | EXP: {exp:,}")
+        log_ok(f"Login success | UID: {acc_id} | {nickname} | Lvl {level} | EXP: {exp:,} | Region: {region}")
 
         account_data = {
             'account_id': majorlogin_response.account_id,
@@ -2142,7 +2125,7 @@ async def process_account_token(access_token: str) -> Optional[Dict]:
         bot_state.register_account(
             uid=acc_id,
             nickname=nick,
-            region=cached.get('region', 'IND'),
+            region=cached.get('region', 'BD'),
             level=lvl,
             exp=exp_val,
             likes=cached.get('likes', 0)
@@ -2213,13 +2196,13 @@ async def process_account_token(access_token: str) -> Optional[Dict]:
         exp = int(get_proto_field(dict_res, 7, 0))
         likes = int(get_proto_field(dict_res, 8, 0))
         nickname = res_proto.nickname or get_proto_field(dict_res, 4, f"Player_{acc_id}")
-        region = "IND"
-        if majorlogin_response.region and majorlogin_response.region.upper() not in ("ID",):
+        region = "BD"
+        if majorlogin_response.region and majorlogin_response.region.upper() not in ("ID", "IND"):
             region = majorlogin_response.region
 
         bot_state.register_account(uid=acc_id, nickname=nickname, region=region, level=level, exp=exp, likes=likes)
 
-        log_ok(f"Token login OK | UID: {acc_id} | {nickname} | Lvl {level} | EXP: {exp:,}")
+        log_ok(f"Token login OK | UID: {acc_id} | {nickname} | Lvl {level} | Region: {region}")
 
         account_data = {
             'account_id': majorlogin_response.account_id,
@@ -2257,9 +2240,10 @@ async def run_account_worker(account_data: Dict, label: str):
     acc_id = str(account_data['account_id'])
     informational_task = None
     exp_task = None
+    functional_task = None
     try:
-        reg = "IND"
-        if account_data.get('region') and account_data['region'].upper() not in ("ID",):
+        reg = "BD"  # 🇧🇩
+        if account_data.get('region') and account_data['region'].upper() not in ("ID", "IND"):
             reg = account_data['region'].upper()
 
         tcp_packet_online = await build_tcp_startup_packet(
@@ -2288,13 +2272,17 @@ async def run_account_worker(account_data: Dict, label: str):
                 tcp_packet_chat,
                 account_data['aes_ak'],
                 account_data['iv_i'],
-                region=reg
+                region=reg,
+                uid=acc_id
             )
         )
 
         async def exp_refresher():
             while True:
                 await asyncio.sleep(90)
+                acc = bot_state.accounts.get(acc_id)
+                if acc is None or acc.get("is_paused", False):
+                    continue
                 fresh = bot_state.account_credentials.get(acc_id)
                 if fresh:
                     await refresh_account_profile(fresh)
@@ -2321,10 +2309,10 @@ async def run_account_worker(account_data: Dict, label: str):
     except Exception as e:
         log_err(f"run_account_worker [{label}]: {e}")
     finally:
-        for t in (informational_task, exp_task):
+        for t in (informational_task, exp_task, functional_task):
             if t and not t.done():
                 t.cancel()
-        for t in (informational_task, exp_task):
+        for t in (informational_task, exp_task, functional_task):
             if t:
                 try:
                     await t
@@ -2335,6 +2323,20 @@ async def run_account_worker(account_data: Dict, label: str):
 async def account_loop_guest(uid: str, password: str):
     while True:
         try:
+            # ====== পজ / ডিলিট চেক ======
+            acc = bot_state.accounts.get(str(uid))
+            if acc is None:
+                log_warn(f"Account {uid} deleted. Stopping worker.")
+                break
+            if acc.get("is_paused", False):
+                try:
+                    bot_state.update_status(str(uid), "PAUSED")
+                except Exception:
+                    pass
+                await asyncio.sleep(3)
+                continue
+            # =============================
+
             log_login(f"Starting login for Guest UID: {uid}")
             try:
                 bot_state.update_status(str(uid), "CONNECTING")
@@ -2369,6 +2371,29 @@ async def account_loop_token(token: str):
     token_label = token[:10]
     while True:
         try:
+            # ====== পজ / ডিলিট চেক ======
+            found_uid = None
+            for k, v in bot_state.accounts.items():
+                if v.get("auth_token", "")[:10] == token_label:
+                    found_uid = k
+                    break
+            if found_uid is None and token_label not in bot_state.accounts:
+                # Check if any account exists at all with this token
+                any_exists = any(
+                    v.get("auth_token", "")[:10] == token_label
+                    for v in bot_state.accounts.values()
+                )
+                if not any_exists and len(bot_state.accounts) > 0:
+                    log_warn(f"Token worker {token_label} - account deleted. Stopping.")
+                    break
+
+            if found_uid:
+                acc = bot_state.accounts.get(found_uid)
+                if acc is not None and acc.get("is_paused", False):
+                    await asyncio.sleep(3)
+                    continue
+            # =============================
+
             log_login("Starting login with Access Token...")
             account_data = await process_account_token(token)
             if not account_data:
@@ -2415,10 +2440,9 @@ async def main():
     log_info(f"Offline Wait         : {NEW_MATCH_DELAY}s")
     log_info(f"Non-match Reconnect  : {NON_MATCH_RECONNECT_DELAY}s")
     log_info(f"Cache Invalidation   : {int(MAX_CONSECUTIVE_PARSE_FAILURES)}x failures")
-    log_info(f"Parallel Matches     : UNLIMITED (background)")
     log_info(f"Cache TTL            : {TOKEN_CACHE_TTL}s ({TOKEN_CACHE_TTL//60} min)")
     log_info(f"HUMAN MODE           : {'ON' if HUMAN_MODE else 'OFF'}")
-    log_info(f"FORCED REGION        : {FORCE_REGION}")
+    log_info(f"FORCED REGION        : {FORCE_REGION} 🇧🇩")
 
     try:
         await start_web_dashboard(host=WEB_HOST, port=WEB_PORT)
@@ -2460,8 +2484,8 @@ async def main():
                 t = asyncio.create_task(account_loop_guest(u, acc["password"]))
                 bot_state.account_workers[u] = t
 
-        log_ok(f"All {len(accounts)} accounts launched")
-        log_info("Watching for matches... (wait 2-5 minutes)")
+        log_ok(f"All {len(accounts)} accounts launched (BD Server 🇧🇩)")
+        log_info("Watching for matches...")
 
     try:
         while True:
