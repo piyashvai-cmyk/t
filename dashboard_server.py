@@ -1,7 +1,8 @@
 # -*- @MASTER_FF_01 -*-
 """
-MASTER OFFICIAL - Dashboard Server
+MASTER OFFICIAL - Dashboard Server (BD Version)
 Full Web Dashboard with Blue Ninja Theme
++Pause/Delete fully functional
 """
 
 import asyncio
@@ -10,6 +11,7 @@ import os
 import time
 from typing import Dict, List, Any, Optional
 from aiohttp import web
+
 
 # ==================== GLOBAL STATE ====================
 class BotState:
@@ -67,7 +69,9 @@ class BotState:
             acc["current_exp"] = exp
             acc["gained_exp"] = max(0, exp - acc["initial_exp"])
             acc["likes"] = likes
-            acc["status"] = "ONLINE"
+            # Don't override PAUSED / OFFLINE status
+            if not acc.get("is_paused", False) and acc.get("status") not in ("PAUSED", "OFFLINE"):
+                acc["status"] = "ONLINE"
             acc["last_updated"] = time.strftime("%H:%M:%S")
         self.recalc_totals()
 
@@ -89,10 +93,14 @@ class BotState:
     def update_status(self, uid: str, status: str, active_matches: Optional[int] = None):
         uid_str = str(uid)
         if uid_str in self.accounts:
-            self.accounts[uid_str]["status"] = status
+            acc = self.accounts[uid_str]
+            # If account is paused, don't let external updates override
+            if acc.get("is_paused", False) and status not in ("PAUSED", "OFFLINE"):
+                return
+            acc["status"] = status
             if active_matches is not None:
-                self.accounts[uid_str]["active_matches"] = active_matches
-            self.accounts[uid_str]["last_updated"] = time.strftime("%H:%M:%S")
+                acc["active_matches"] = active_matches
+            acc["last_updated"] = time.strftime("%H:%M:%S")
 
     def increment_match(self, uid: str):
         uid_str = str(uid)
@@ -102,7 +110,6 @@ class BotState:
             acc["matches_played"] += 1
             acc["last_match_time"] = time.strftime("%H:%M:%S")
             acc["last_updated"] = time.strftime("%H:%M:%S")
-            # Match history
             history = acc.get("match_history", [])
             history.append({
                 "time": time.strftime("%H:%M:%S"),
@@ -208,25 +215,126 @@ async def handle_add_account(request: web.Request) -> web.Response:
 
 
 async def handle_delete_account(request: web.Request) -> web.Response:
+    """
+    Fully deletes account:
+    1. Remove from accounts.json
+    2. Mark as paused (so loops see it as deleted)
+    3. Delete from bot_state.accounts (loops will detect `None`)
+    4. Cancel worker task
+    5. Remove credentials
+    """
     try:
         data = await request.json()
         uid = str(data.get("uid")).strip()
+
+        # 1. Remove from accounts.json
         if os.path.exists(ACCOUNTS_FILE):
-            with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
-                existing = json.load(f)
-            existing = [acc for acc in existing if str(acc.get("uid")) != uid and str(acc.get("token", ""))[:20] != uid]
-            with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
-                json.dump(existing, f, indent=2)
+            try:
+                with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+                    existing = json.load(f)
+                existing = [
+                    acc for acc in existing
+                    if str(acc.get("uid")) != uid
+                    and str(acc.get("token", ""))[:20] != uid
+                ]
+                with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(existing, f, indent=2)
+            except Exception as e:
+                bot_state.log(f"Error updating accounts.json: {e}", "error", uid)
 
+        # 2 & 3. Mark paused then remove from state
         if uid in bot_state.accounts:
-            del bot_state.accounts[uid]
+            try:
+                bot_state.accounts[uid]["is_paused"] = True
+                bot_state.accounts[uid]["status"] = "OFFLINE"
+            except Exception:
+                pass
+            try:
+                del bot_state.accounts[uid]
+            except Exception:
+                pass
 
+        # 4. Cancel worker task
         if uid in bot_state.account_workers:
-            bot_state.account_workers[uid].cancel()
-            del bot_state.account_workers[uid]
+            task = bot_state.account_workers.pop(uid)
+            try:
+                task.cancel()
+                try:
+                    await asyncio.wait_for(task, timeout=5.0)
+                except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+                    pass
+            except Exception:
+                pass
 
-        bot_state.log(f"Account {uid} removed", "warning", uid)
+        # 5. Remove credentials
+        bot_state.account_credentials.pop(uid, None)
+        # Also remove any token-based credentials
+        keys_to_del = [k for k in bot_state.account_credentials if k.startswith(f"tok_{uid[:20]}")]
+        for k in keys_to_del:
+            bot_state.account_credentials.pop(k, None)
+
+        bot_state.log(f"Account {uid} removed (offline)", "warning", uid)
         return web.json_response({"status": "ok"})
+    except Exception as e:
+        return web.json_response({"status": "error", "error": str(e)})
+
+
+async def handle_pause_account(request: web.Request) -> web.Response:
+    """
+    Toggle pause. When paused:
+    - is_paused=True
+    - status=PAUSED
+    - All loops (TCP, UDP, informational) will disconnect within 2-3 sec
+    When resumed:
+    - is_paused=False
+    - status=ONLINE (login will restart)
+    """
+    try:
+        data = await request.json()
+        uid = str(data.get("uid")).strip()
+        if uid in bot_state.accounts:
+            acc = bot_state.accounts[uid]
+            new_pause_state = not acc.get("is_paused", False)
+            acc["is_paused"] = new_pause_state
+            acc["status"] = "PAUSED" if new_pause_state else "ONLINE"
+            acc["last_updated"] = time.strftime("%H:%M:%S")
+
+            if new_pause_state:
+                bot_state.log(f"Account {uid} PAUSED (offline)", "warning", uid)
+            else:
+                bot_state.log(f"Account {uid} RESUMED (online)", "success", uid)
+
+            return web.json_response({
+                "status": "ok",
+                "is_paused": new_pause_state,
+                "new_status": acc["status"]
+            })
+        return web.json_response({"status": "error", "error": "Account not found"})
+    except Exception as e:
+        return web.json_response({"status": "error", "error": str(e)})
+
+
+async def handle_pause_all(request: web.Request) -> web.Response:
+    """Toggle all accounts. If any is running, pause all. Else resume all."""
+    try:
+        if not bot_state.accounts:
+            return web.json_response({"status": "error", "error": "No accounts"})
+
+        # If ALL are paused → resume all. Else pause all.
+        all_paused = all(acc.get("is_paused", False) for acc in bot_state.accounts.values())
+        new_state = not all_paused
+
+        for acc in bot_state.accounts.values():
+            acc["is_paused"] = new_state
+            acc["status"] = "PAUSED" if new_state else "ONLINE"
+            acc["last_updated"] = time.strftime("%H:%M:%S")
+
+        if new_state:
+            bot_state.log("All accounts PAUSED (offline)", "warning")
+        else:
+            bot_state.log("All accounts RESUMED (online)", "success")
+
+        return web.json_response({"status": "ok", "all_paused": new_state})
     except Exception as e:
         return web.json_response({"status": "error", "error": str(e)})
 
@@ -242,41 +350,15 @@ async def handle_refresh_account(request: web.Request) -> web.Response:
         return web.json_response({"status": "error", "error": str(e)})
 
 
-async def handle_pause_account(request: web.Request) -> web.Response:
-    try:
-        data = await request.json()
-        uid = str(data.get("uid")).strip()
-        if uid in bot_state.accounts:
-            acc = bot_state.accounts[uid]
-            acc["is_paused"] = not acc.get("is_paused", False)
-            if acc["is_paused"]:
-                acc["status"] = "PAUSED"
-            else:
-                acc["status"] = "ONLINE"
-            return web.json_response({"status": "ok", "is_paused": acc["is_paused"]})
-        return web.json_response({"status": "error", "error": "Account not found"})
-    except Exception as e:
-        return web.json_response({"status": "error", "error": str(e)})
-
-
-async def handle_pause_all(request: web.Request) -> web.Response:
-    try:
-        all_paused = all(acc.get("is_paused", False) for acc in bot_state.accounts.values()) if bot_state.accounts else False
-        new_state = not all_paused
-        for acc in bot_state.accounts.values():
-            acc["is_paused"] = new_state
-            acc["status"] = "PAUSED" if new_state else "ONLINE"
-        return web.json_response({"status": "ok", "all_paused": new_state})
-    except Exception as e:
-        return web.json_response({"status": "error", "error": str(e)})
-
-
 async def handle_restart_account(request: web.Request) -> web.Response:
     try:
         data = await request.json()
         uid = str(data.get("uid")).strip()
         if uid in bot_state.account_workers:
-            bot_state.account_workers[uid].cancel()
+            try:
+                bot_state.account_workers[uid].cancel()
+            except Exception:
+                pass
         return web.json_response({"status": "ok"})
     except Exception as e:
         return web.json_response({"status": "error", "error": str(e)})
@@ -292,7 +374,7 @@ async def handle_clear_logs(request: web.Request) -> web.Response:
 
 # ==================== SERVER START ====================
 
-async def start_web_dashboard(host: str = "0.0.0.0", port: int = 20333):
+async def start_web_dashboard(host: str = "0.0.0.0", port: int = 20337):
     app = web.Application()
     app.router.add_get("/", handle_index)
     app.router.add_get("/api/stats", handle_get_stats)
