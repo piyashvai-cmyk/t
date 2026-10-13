@@ -1,4 +1,4 @@
-# ==================== APP.PY - MASTER OFFICIAL (BD VERSION) ====================
+# ==================== APP.PY - MASTER OFFICIAL (BD FINAL) ====================
 import sys
 import asyncio
 import httpx
@@ -52,7 +52,7 @@ MATCH_IDLE_TIMEOUT = 20.0
 MAX_CONCURRENT_MATCHES = 1
 HUMAN_MODE = True
 
-FORCE_REGION = "BD"  # 🇧🇩 বাংলাদেশ সার্ভার
+FORCE_REGION = "BD"   # 🇧🇩 Bangladesh
 
 MAX_CONSECUTIVE_PARSE_FAILURES = 5.0
 NON_MATCH_RECONNECT_DELAY = 1.0
@@ -70,7 +70,53 @@ async def human_jitter():
     return random.uniform(0.05, 0.35)
 
 
-# ==================== PERSISTENT DEVICE RANDOMIZER ====================
+# ==================== BD IP RANGES ====================
+# Real Bangladeshi ISP IP prefixes
+BD_IP_PREFIXES = [
+    "103.244",   # Link3 Technologies
+    "103.145",   # Grameenphone
+    "103.230",   # Banglalink
+    "103.87",    # Robi Axiata
+    "103.108",   # Aamra Networks
+    "103.92",    # Amber IT
+    "103.117",   # Carnival Internet
+    "118.179",   # BTCL
+    "119.30",    # BTCL
+    "203.76",    # Bracnet
+    "202.81",    # Aamra
+    "202.4",     # ISP
+    "103.4",     # BD Range
+    "103.6",     # BD Range
+    "103.66",    # BD Range
+]
+
+BD_TELECOM_OPERATORS = [
+    "Grameenphone",
+    "Robi Axiata",
+    "Banglalink",
+    "Airtel",
+    "Teletalk",
+]
+
+BD_CITIES = [
+    ("Dhaka", "DH"),
+    ("Chattogram", "CH"),
+    ("Sylhet", "SY"),
+    ("Rajshahi", "RA"),
+    ("Khulna", "KH"),
+    ("Barishal", "BA"),
+    ("Rangpur", "RP"),
+    ("Mymensingh", "MY"),
+]
+
+
+def generate_bd_ip() -> str:
+    """Generate random Bangladeshi IP"""
+    prefix = random.choice(BD_IP_PREFIXES)
+    return f"{prefix}.{random.randint(1, 254)}.{random.randint(1, 254)}"
+
+
+# ==================== PERSISTENT DEVICE RANDOMIZER (BD) ====================
 def get_device_for_account(account_identifier: str) -> dict:
     devices = {}
     if os.path.exists(DEVICES_FILE):
@@ -82,7 +128,10 @@ def get_device_for_account(account_identifier: str) -> dict:
 
     acc_key = str(account_identifier)
     if acc_key in devices:
-        return devices[acc_key]
+        dev = devices[acc_key]
+        # Refresh client_ip every time (should be BD)
+        dev["client_ip"] = generate_bd_ip()
+        return dev
 
     device_list = [
         ("Samsung", "SM-G998B", "Adreno (TM) 660", "Android OS 12 / API-31"),
@@ -93,8 +142,11 @@ def get_device_for_account(account_identifier: str) -> dict:
         ("Vivo", "V2203", "Mali-G710", "Android OS 12 / API-31"),
         ("Poco", "M2102J20SG", "Adreno (TM) 660", "Android OS 13 / API-33"),
         ("Samsung", "SM-G991B", "Adreno (TM) 660", "Android OS 13 / API-33"),
+        ("Samsung", "SM-A536E", "Mali-G68", "Android OS 13 / API-33"),
+        ("Xiaomi", "2203121C", "Adreno (TM) 730", "Android OS 13 / API-33"),
     ]
     brand, model, gpu, os_ver = random.choice(device_list)
+    city, state = random.choice(BD_CITIES)
 
     new_device = {
         "unique_device_id": f"Google|{str(uuid.uuid4())}",
@@ -107,12 +159,15 @@ def get_device_for_account(account_identifier: str) -> dict:
         "screen_dpi": str(random.randint(300, 420)),
         "memory": random.randint(2800, 6500),
         "processor_details": f"ARM64 FP ASIMD AES VMH | {random.randint(2200, 3200)} | {random.randint(6, 12)}",
-        "client_ip": f"{random.randint(103, 223)}.{random.randint(10, 250)}.{random.randint(10, 250)}.{random.randint(10, 250)}",
+        "client_ip": generate_bd_ip(),
         "android_id": secrets.token_hex(8),
         "gsf_id": secrets.token_hex(8),
         "build_fingerprint": f"{brand.lower()}/{model.lower()}/{model.lower()}:{os_ver.split(' / ')[0].replace(' ', '_')}/user/release-keys",
         "serial_number": secrets.token_hex(8),
         "hardware_id": secrets.token_hex(8),
+        "telecom_operator": random.choice(BD_TELECOM_OPERATORS),
+        "city": city,
+        "state": state,
     }
 
     devices[acc_key] = new_device
@@ -391,7 +446,7 @@ def log_banner():
     print(f"{Colors.CYAN}+{'=' * 58}+{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{' ' * 58}{Colors.CYAN}|{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.BOLD}{Colors.MAGENTA}{'MASTER OFFICIAL - BD SERVER'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
-    print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.DIM}{'Lone Wolf Mode | Bangladesh'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
+    print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.DIM}{'Lone Wolf Mode | Bangladesh Region'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{' ' * 58}{Colors.CYAN}|{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.GREEN}{'Telegram: @master_ff_01'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
     print(f"{Colors.CYAN}|{Colors.ENDC}{Colors.WHITE}{f'Dashboard: http://localhost:{WEB_PORT}'.center(58)}{Colors.ENDC}{Colors.CYAN}|{Colors.ENDC}")
@@ -558,7 +613,7 @@ async def get_playstore_version():
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(
         None,
-        lambda: play_scraper('com.dts.freefireth', lang='hi', country='bd')
+        lambda: play_scraper('com.dts.freefireth', lang='en', country='bd')
     )
     return result.get("version")
 
@@ -569,7 +624,7 @@ async def version_config():
     api_url = (
         "https://version.ggwhitehawk.com/live/ver.php"
         f"?version={app_version}"
-        "&lang=hi&device=android&channel=android"
+        "&lang=en&device=android&channel=android"
         "&appstore=googleplay&region=BD"
         "&whitelist_version=1.3.0&whitelist_sp_version=1.0.0"
     )
@@ -684,16 +739,20 @@ def encrypt_api_bytes(plain_bytes):
 
 
 async def build_majorlogin_payload(open_id, access_token, platform, client_version, device_info):
-    """🇧🇩 BD region payload"""
+    """🇧🇩 BD region payload with BD telecom + city"""
     try:
+        telecom = device_info.get("telecom_operator", "Grameenphone")
+        city = device_info.get("city", "Dhaka")
+        state = device_info.get("state", "DH")
+
         payload_dict = {
             3:   str(datetime.now())[:-7],
             4:   "free fire",
             5:   "1",
             7:   str(client_version) if client_version else "1.132.10",
-            8:   str(device_info.get("system_software", "Android OS 15 / API-35")),
+            8:   str(device_info.get("system_software", "Android OS 13 / API-33")),
             9:   "Handheld",
-            10:  "Grameenphone",
+            10:  telecom,
             11:  "CarrierDataNetwork",
             12:  str(device_info.get("screen_width", 1639)),
             13:  str(device_info.get("screen_height", 720)),
@@ -703,16 +762,16 @@ async def build_majorlogin_payload(open_id, access_token, platform, client_versi
             17:  str(device_info.get("gpu_renderer", "Mali-G52 MC2")),
             18:  "OpenGL ES 3.2 v1.r49p1-03bet0.19498e0ae1d5dac223383c39a2e58f04",
             19:  str(device_info.get("unique_device_id", f"Google|{uuid.uuid4()}")),
-            20:  str(device_info.get("client_ip", "103.244.141.111")),
+            20:  str(device_info.get("client_ip", generate_bd_ip())),
             21:  "en",
             22:  str(open_id),
             23:  str(platform),
             24:  "Handheld",
             25:  str(device_info.get("model", "Xiaomi 2409BRN2CY")),
-            26:  "BD",  # 🇧🇩 Bangladesh region
+            26:  "BD",   # 🇧🇩
             29:  str(access_token),
             30:  "1",
-            41:  "Grameenphone",
+            41:  telecom,
             42:  "4G",
             57:  "7428b253defc164018c604a1ebbfebdf",
             60:  "109278",
@@ -734,8 +793,8 @@ async def build_majorlogin_payload(open_id, access_token, platform, client_versi
             86:  "OpenGLES2",
             87:  "8191",
             88:  str(platform),
-            90:  "Dhaka",
-            91:  "DH",
+            90:  city,
+            91:  state,
             92:  "14466",
             93:  "android",
             94:  "KqsHTyb7yHjsAiyNWUUZa0DSOD6U0AhDQ76smAo1WeHHHpSmJ8KMRyRrxb2ttgJqO9YOqO/K6AORAvDMAX/qBS8+JahIkrM7kHfzlfULbgRAoZ9r",
@@ -768,7 +827,6 @@ async def send_majorlogin(data, release_version, server_url):
         url = f"{base}/MajorLogin"
         req_headers = headers.copy()
         req_headers["ReleaseVersion"] = release_version
-        # Dynamic Host header
         parsed = urlparse(server_url)
         if parsed.netloc:
             req_headers["Host"] = parsed.netloc
@@ -819,7 +877,6 @@ async def send_getlogin(data, base_url, token, release_version):
         req_headers = headers.copy()
         req_headers["ReleaseVersion"] = release_version
         req_headers['Authorization'] = f"Bearer {token}"
-        # BD এর জন্য ডাইনামিক Host
         parsed = urlparse(base_url)
         req_headers['Host'] = parsed.netloc or "loginbp.ppmainecoonghj.com"
         response = await client.post(url, headers=req_headers, data=data)
@@ -1483,7 +1540,7 @@ async def play_game(server_ip_port, thunder, sharma, udp_key, match_code,
 
 
 # ============================================================
-# functional_lone_wolf — TCP + Match handler (pause/delete aware)
+# functional_lone_wolf — TCP + Match handler
 # ============================================================
 async def functional_lone_wolf(addrs, starter_packet, account_region, client_version,
                                 key, iv, account_id="", account_data=None,
@@ -2040,6 +2097,7 @@ async def process_account_uid_pass(uid: str, password: str) -> Optional[Dict]:
         open_id, access_token, platform = tokengrant_response
 
         device_info = get_device_for_account(uid)
+        log_info(f"Device: {device_info.get('brand')} {device_info.get('model')} | IP: {device_info.get('client_ip')}")
 
         login_payload_data = await build_majorlogin_payload(
             open_id, access_token, platform, client_version, device_info
@@ -2165,6 +2223,7 @@ async def process_account_token(access_token: str) -> Optional[Dict]:
             return None
 
         device_info = get_device_for_account(open_id)
+        log_info(f"Device: {device_info.get('brand')} {device_info.get('model')} | IP: {device_info.get('client_ip')}")
 
         login_payload_data = await build_majorlogin_payload(
             open_id, access_token, str(platform), client_version, device_info
@@ -2242,7 +2301,7 @@ async def run_account_worker(account_data: Dict, label: str):
     exp_task = None
     functional_task = None
     try:
-        reg = "BD"  # 🇧🇩
+        reg = "BD"
         if account_data.get('region') and account_data['region'].upper() not in ("ID", "IND"):
             reg = account_data['region'].upper()
 
@@ -2323,7 +2382,6 @@ async def run_account_worker(account_data: Dict, label: str):
 async def account_loop_guest(uid: str, password: str):
     while True:
         try:
-            # ====== পজ / ডিলিট চেক ======
             acc = bot_state.accounts.get(str(uid))
             if acc is None:
                 log_warn(f"Account {uid} deleted. Stopping worker.")
@@ -2335,7 +2393,6 @@ async def account_loop_guest(uid: str, password: str):
                     pass
                 await asyncio.sleep(3)
                 continue
-            # =============================
 
             log_login(f"Starting login for Guest UID: {uid}")
             try:
@@ -2371,19 +2428,17 @@ async def account_loop_token(token: str):
     token_label = token[:10]
     while True:
         try:
-            # ====== পজ / ডিলিট চেক ======
             found_uid = None
             for k, v in bot_state.accounts.items():
                 if v.get("auth_token", "")[:10] == token_label:
                     found_uid = k
                     break
-            if found_uid is None and token_label not in bot_state.accounts:
-                # Check if any account exists at all with this token
+            if found_uid is None and len(bot_state.accounts) > 0:
                 any_exists = any(
                     v.get("auth_token", "")[:10] == token_label
                     for v in bot_state.accounts.values()
                 )
-                if not any_exists and len(bot_state.accounts) > 0:
+                if not any_exists:
                     log_warn(f"Token worker {token_label} - account deleted. Stopping.")
                     break
 
@@ -2392,7 +2447,6 @@ async def account_loop_token(token: str):
                 if acc is not None and acc.get("is_paused", False):
                     await asyncio.sleep(3)
                     continue
-            # =============================
 
             log_login("Starting login with Access Token...")
             account_data = await process_account_token(token)
@@ -2442,7 +2496,8 @@ async def main():
     log_info(f"Cache Invalidation   : {int(MAX_CONSECUTIVE_PARSE_FAILURES)}x failures")
     log_info(f"Cache TTL            : {TOKEN_CACHE_TTL}s ({TOKEN_CACHE_TTL//60} min)")
     log_info(f"HUMAN MODE           : {'ON' if HUMAN_MODE else 'OFF'}")
-    log_info(f"FORCED REGION        : {FORCE_REGION} 🇧🇩")
+    log_info(f"FORCED REGION        : {FORCE_REGION} BD [Bangladesh]")
+    log_info(f"BD IP Prefixes       : {len(BD_IP_PREFIXES)} ranges loaded")
 
     try:
         await start_web_dashboard(host=WEB_HOST, port=WEB_PORT)
@@ -2484,7 +2539,7 @@ async def main():
                 t = asyncio.create_task(account_loop_guest(u, acc["password"]))
                 bot_state.account_workers[u] = t
 
-        log_ok(f"All {len(accounts)} accounts launched (BD Server 🇧🇩)")
+        log_ok(f"All {len(accounts)} accounts launched (BD Server)")
         log_info("Watching for matches...")
 
     try:
